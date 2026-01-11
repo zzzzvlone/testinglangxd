@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E-Boto | NFSHS SSLG Election</title>
+
+<link rel="icon" href="">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+*{box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:0}
+body{
+  background:#eef2f7;
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+.hidden{display:none}
+
+.container{
+  background:#fff;
+  width:95%;
+  max-width:500px;
+  border-radius:14px;
+  padding:20px;
+  box-shadow:0 8px 30px rgba(0,0,0,.15);
+}
+
+h3{text-align:center;color:#0054a6;margin-bottom:10px}
+
+.logo{
+  display:block;
+  margin:0 auto 10px;
+  width:90px;
+  border-radius:50%;
+}
+
+input,select{
+  width:100%;
+  padding:10px;
+  margin:6px 0;
+  border-radius:8px;
+  border:1px solid #ccc;
+}
+
+button{
+  width:100%;
+  padding:10px;
+  margin-top:8px;
+  background:#0054a6;
+  color:#fff;
+  border:none;
+  border-radius:8px;
+}
+button:hover{background:#003e7c}
+button:disabled{background:#999}
+
+.eye{
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  cursor:pointer;
+}
+
+.position-header{
+  margin-top:15px;
+  font-weight:bold;
+  color:#0054a6;
+  border-bottom:2px solid #0054a6;
+  padding-bottom:4px;
+}
+
+.candidate{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  background:#f1f5f9;
+  padding:10px;
+  border-radius:10px;
+  margin:8px 0;
+}
+
+.candidate-info{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.candidate img{
+  width:50px;
+  height:50px;
+  border-radius:50%;
+  object-fit:cover;
+  border:2px solid #0054a6;
+}
+
+.feedback{margin-top:10px;color:green}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+  font-size:13px;
+}
+th,td{
+  border:1px solid #ccc;
+  padding:6px;
+}
+th{background:#0054a6;color:white}
+</style>
+</head>
+
+<body>
+
+<div id="splash" style="position:fixed;inset:0;background:#0054a6;color:#fff;
+display:flex;flex-direction:column;justify-content:center;align-items:center">
+  <h1>E-Boto</h1>
+  <p>NFSHS SSLG Election</p>
+</div>
+
+<div class="container hidden" id="loginContainer">
+  <img src="https://i.imgur.com/Ec5IF7i.jpeg" class="logo">
+  <h3>E-Boto Voting System</h3>
+
+  <input id="loginLRN" placeholder="Enter 12-digit LRN" maxlength="12">
+
+  <div style="position:relative">
+    <input id="loginPass" type="password" placeholder="Password">
+    <span class="eye" onclick="toggleEye()">👁</span>
+  </div>
+
+  <button onclick="login()">Login</button>
+  <button style="background:#00b4d8" onclick="showAdminLogin()">Admin Access</button>
+  <a href="#" onclick="forgotPassword()">Forgot Password?</a>
+</div>
+
+<div class="container hidden" id="voteContainer">
+  <h3>Vote for SSLG Officers</h3>
+  <p>Welcome, <b id="studentName"></b></p>
+
+  <div id="votingTimer"></div>
+  <div id="progress"></div>
+  <div id="candidatesContainer"></div>
+
+  <div id="voteFeedback" class="feedback"></div>
+  <button style="background:#777" onclick="confirmLogout()">Logout</button>
+</div>
+
+<div class="container hidden" id="adminContainer" style="max-width:800px">
+  <h3>Admin Dashboard</h3>
+
+  <input type="datetime-local" id="startTime">
+  <input type="datetime-local" id="endTime">
+  <button onclick="setElectionTimer()">Set Election Timer</button>
+
+  <p>Total Voters: <span id="totalVoters">0</span></p>
+  <p>Total Votes: <span id="totalVotes">0</span></p>
+  <p>Remaining: <span id="remainingVoters">0</span></p>
+
+  <canvas id="positionChart"></canvas>
+
+  <h4>Add Voter</h4>
+  <input id="newVoterLRN" placeholder="12-digit LRN">
+  <input id="newVoterName" placeholder="Student Name">
+  <input id="newVoterPass" placeholder="Password">
+  <button style="background:#00b4d8" onclick="addVoter()">Add Voter</button>
+
+  <h4>Add Candidate</h4>
+  <input id="newCandidateName" placeholder="Candidate Name">
+  <input id="newCandidateImg" placeholder="Candidate Image URL">
+  <select id="newCandidatePosition">
+    <option value="pres">President</option>
+    <option value="vp">Vice President</option>
+    <option value="treasurer">Treasurer</option>
+  </select>
+  <button onclick="addCandidate()">Add Candidate</button>
+
+  <h4>Audit Log</h4>
+  <button onclick="exportResultsCSV()">Export Results (CSV)</button>
+
+  <table>
+    <thead>
+      <tr><th>Time</th><th>LRN</th><th>Action</th><th>Candidate</th></tr>
+    </thead>
+    <tbody id="auditBody"></tbody>
+  </table>
+
+  <button style="background:#e63946" onclick="confirmReset()">Reset Election</button>
+  <button style="background:#777" onclick="confirmLogout()">Logout</button>
+</div>
+
+<script>
+setTimeout(()=>{
+  splash.style.display="none";
+  loginContainer.classList.remove("hidden");
+},2000);
+
+if(!localStorage.users){
+  localStorage.users=JSON.stringify([
+    {lrn:"202500000001",pass:"student1",name:"Juan Dela Cruz",voted:{}},
+    {lrn:"202500000002",pass:"student2",name:"Maria Santos",voted:{}}
+  ]);
+}
+if(!localStorage.votes)
+  localStorage.votes=JSON.stringify({pres:[],vp:[],treasurer:[]});
+if(!localStorage.candidates)
+  localStorage.candidates=JSON.stringify({
+    pres:[{name:"Taylor Swift",img:""}],
+    vp:[{name:"Travis Scott",img:""}],
+    treasurer:[{name:"Tony Montana",img:""}]
+  });
+
+let users=JSON.parse(localStorage.users);
+let votes=JSON.parse(localStorage.votes);
+let candidates=JSON.parse(localStorage.candidates);
+let auditLog=JSON.parse(localStorage.auditLog||"[]");
+
+const positions=["pres","vp","treasurer"];
+const names={pres:"President",vp:"Vice President",treasurer:"Treasurer"};
+const adminPassword="admin123";
+let chart,timer;
+
+function toggleEye(){
+  loginPass.type = loginPass.type==="password" ? "text" : "password";
+}
+
+function login(){
+  const u = users.find(x=>x.lrn===loginLRN.value && x.pass===loginPass.value);
+  if(!u) return alert("Invalid login");
+  studentName.textContent = u.name;
+  loginContainer.classList.add("hidden");
+  voteContainer.classList.remove("hidden");
+  renderCandidates();
+  updateProgress();
+  startTimer();
+}
+
+function renderCandidates(){
+  const u = users.find(x=>x.lrn===loginLRN.value);
+  candidatesContainer.innerHTML="";
+  positions.forEach(p=>{
+    candidatesContainer.innerHTML+=`<div class="position-header">${names[p]}</div>`;
+    candidates[p].forEach(c=>{
+      candidatesContainer.innerHTML+=`
+      <div class="candidate">
+        <div class="candidate-info">
+          <img src="${c.img}">
+          <strong>${c.name}</strong>
+        </div>
+        <button ${u.voted[p]?"disabled":""}
+        onclick="vote('${p}','${c.name}')">
+        ${u.voted[p]?"Voted":"Vote"}
+        </button>
+      </div>`;
+    });
+  });
+}
+
+function vote(p,name){
+  const u = users.find(x=>x.lrn===loginLRN.value);
+  if(u.voted[p]) return;
+  if(!confirm(`Vote for ${name}?`)) return;
+  u.voted[p]=true;
+  votes[p].push(name);
+  localStorage.users=JSON.stringify(users);
+  localStorage.votes=JSON.stringify(votes);
+  updateProgress();
+  renderCandidates();
+  renderChart();
+}
+
+function updateProgress(){
+  const u=users.find(x=>x.lrn===loginLRN.value);
+  progress.textContent=`Progress: ${Object.keys(u.voted).length}/${positions.length}`;
+}
+
+function showAdminLogin(){
+  if(prompt("Admin password")!==adminPassword) return;
+  loginContainer.classList.add("hidden");
+  adminContainer.classList.remove("hidden");
+  renderChart();
+  renderAudit();
+}
+
+function renderChart(){
+  if(chart) chart.destroy();
+  const labels=[],data=[];
+  positions.forEach(p=>{
+    candidates[p].forEach(c=>{
+      labels.push(`${c.name} (${names[p]})`);
+      data.push(votes[p].filter(v=>v===c.name).length);
+    });
+  });
+  chart=new Chart(positionChart,{
+    type:"bar",
+    data:{labels,datasets:[{label:"Votes",data}]}
+  });
+}
+
+function renderAudit(){
+  auditBody.innerHTML="";
+  auditLog.forEach(l=>{
+    auditBody.innerHTML+=`
+    <tr>
+      <td>${l.time}</td>
+      <td>${l.lrn}</td>
+      <td>${l.action}</td>
+      <td>${l.candidate}</td>
+    </tr>`;
+  });
+}
+
+function addVoter(){
+  users.push({
+    lrn:newVoterLRN.value,
+    name:newVoterName.value,
+    pass:newVoterPass.value,
+    voted:{}
+  });
+  localStorage.users=JSON.stringify(users);
+  alert("Voter added");
+}
+
+function addCandidate(){
+  candidates[newCandidatePosition.value].push({
+    name:newCandidateName.value,
+    img:newCandidateImg.value
+  });
+  localStorage.candidates=JSON.stringify(candidates);
+  renderCandidates();
+  renderChart();
+}
+
+function setElectionTimer(){
+  localStorage.start=startTime.value;
+  localStorage.end=endTime.value;
+}
+
+function startTimer(){
+  clearInterval(timer);
+  timer=setInterval(()=>{
+    const now=new Date();
+    if(localStorage.end && now>new Date(localStorage.end))
+      votingTimer.textContent="Election ended";
+    else votingTimer.textContent="Election live";
+  },1000);
+}
+
+function confirmReset(){
+  if(!confirm("Reset election?")) return;
+  votes={pres:[],vp:[],treasurer:[]};
+  users.forEach(u=>u.voted={});
+  localStorage.votes=JSON.stringify(votes);
+  localStorage.users=JSON.stringify(users);
+  alert("Reset done");
+}
+
+function exportResultsCSV(){
+  let rows=[["Position","Candidate","Votes"]];
+  positions.forEach(p=>{
+    candidates[p].forEach(c=>{
+      rows.push([names[p],c.name,votes[p].filter(v=>v===c.name).length]);
+    });
+  });
+  const csv=rows.map(r=>r.join(",")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download="results.csv";
+  a.click();
+}
+
+function confirmLogout(){location.reload()}
+function forgotPassword(){alert("Contact admin")}
+</script>
+</body>
+</html>
